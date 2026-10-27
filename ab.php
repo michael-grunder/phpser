@@ -6,10 +6,13 @@
 //   php -d extension=candidate.so ab.php
 // Knobs: BENCH_ITERS (default 1000, minimum 1), BENCH_REPS (default 15).
 //   BENCH_MODE=plain   (default) phpser_serialize / phpser_unserialize
+//   BENCH_MODE=decode  decode only, for perf record/stat
 //   BENCH_MODE=signed  phpser_serialize_signed / phpser_unserialize_signed
 //   BENCH_MODE=gc      decode BENCH_GC_KEEP (default 200) copies kept alive
 //                      with the collector on; prints ns/op and gc runs
 //   BENCH_APP=1        appends eloquent_coll_30 and wallet (see bench.php)
+//   BENCH_EXTRA=1      appends numeric, string and wide-table fixtures
+//   BENCH_SHAPE=name   runs only that shape
 // gc mode runs in-process: the adaptive GC threshold drifts across shapes,
 // but both binaries replay the same sequence, so the A/B comparison holds.
 declare(strict_types=1);
@@ -435,6 +438,29 @@ if (getenv('BENCH_APP')) {
     $shapes['eloquent_coll_30'] = mk_eloquent_collection(30);
     $shapes['wallet'] = mk_wallet();
 }
+if (getenv('BENCH_EXTRA')) {
+    $shapes['doubles_10k'] = array_map(fn($i) => $i * 1.07, range(0, 9999));
+    $shapes['doubles_1m'] = array_map(fn($i) => $i * 1.07, range(0, 999999));
+    mt_srand(42);
+    $shapes['ints_2byte_10k'] = array_map(fn() => mt_rand(-8192, 8191), range(0, 9999));
+    $shapes['strings_10k'] = array_map(fn($i) => "value_" . ($i % 200), range(0, 9999));
+    $shapes['table_10k'] = mk_rowset(10000);
+    $wide = [];
+    for ($i = 0; $i < 1000; $i++) {
+        $row = [];
+        for ($j = 0; $j < 32; $j++) $row["column_$j"] = $i * 1.07 + $j;
+        $wide[] = $row;
+    }
+    $shapes['wide_1000'] = $wide;
+    unset($wide, $row);
+}
+if (($shape = getenv('BENCH_SHAPE')) !== false && $shape !== '') {
+    if (!array_key_exists($shape, $shapes)) {
+        fwrite(STDERR, "unknown BENCH_SHAPE=$shape\n");
+        exit(1);
+    }
+    $shapes = [$shape => $shapes[$shape]];
+}
 
 if ($MODE === 'gc') {
     ini_set('memory_limit', '-1');
@@ -453,8 +479,8 @@ $dec_fn = 'phpser_unserialize';
 if ($MODE === 'signed') {
     $enc_fn = fn($v) => phpser_serialize_signed($v, $KEY);
     $dec_fn = fn($b) => phpser_unserialize_signed($b, $KEY);
-} elseif ($MODE !== 'plain') {
-    fwrite(STDERR, "unknown BENCH_MODE=$MODE (plain|signed|gc)\n");
+} elseif ($MODE !== 'plain' && $MODE !== 'decode') {
+    fwrite(STDERR, "unknown BENCH_MODE=$MODE (plain|decode|signed|gc)\n");
     exit(1);
 }
 
@@ -464,7 +490,8 @@ foreach ($shapes as $name => $data) {
         fwrite(STDERR, "MISMATCH $name\n");
         exit(1);
     }
-    $enc = med($enc_fn, $data, $ITERS, $REPS);
+    for ($i = 0; $i < min($ITERS, 100); $i++) $dec_fn($blob);
+    $enc = $MODE === 'decode' ? 0.0 : med($enc_fn, $data, $ITERS, $REPS);
     $dec = med($dec_fn, $blob, $ITERS, $REPS);
     printf("%-12s size=%7d enc=%9.1f dec=%9.1f\n", $name, strlen($blob), $enc, $dec);
 }

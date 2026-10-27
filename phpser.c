@@ -3503,14 +3503,15 @@ static int dec_table_column(decode_ctx *d, zval *col, uint64_t nrows, uint8_t co
                 ZVAL_LONG(&col[i], lv);
             }
             return 0;
-        case TAG_PACKED_DOUBLES:
+        case TAG_PACKED_DOUBLES: {
             if (nrows > (d->len - d->pos) / 8) goto fail;
+            const uint8_t *src = d->buf + d->pos;
             for (; i < nrows; i++) {
-                if (d->pos + 8 > d->len) goto fail;
-                ZVAL_DOUBLE(&col[i], le64_read(d->buf + d->pos));
-                d->pos += 8;
+                ZVAL_DOUBLE(&col[i], le64_read(src + i * 8));
             }
+            d->pos += (size_t)nrows * 8;
             return 0;
+        }
         case TAG_PACKED_STRINGS:
             for (; i < nrows; i++) {
                 uint64_t idx;
@@ -3639,10 +3640,11 @@ static int decode_value_inner(decode_ctx *d, zval *out) {
             if (n > UINT32_MAX || n > (d->len - d->pos) / 8) return -1;
             zend_array *arr = dec_new_array((uint32_t)n, DEC_INIT_PACKED);
             if (UNEXPECTED(!arr)) return -1;
+            const uint8_t *src = d->buf + d->pos;
             for (uint64_t i = 0; i < n; i++) {
-                ZVAL_DOUBLE(&arr->arPacked[i], le64_read(d->buf + d->pos));
-                d->pos += 8;
+                ZVAL_DOUBLE(&arr->arPacked[i], le64_read(src + i * 8));
             }
+            d->pos += (size_t)n * 8;
             dec_finish_packed(arr, n, out);
             return 0;
         }

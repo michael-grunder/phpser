@@ -4271,12 +4271,6 @@ static zend_never_inline int dec_decode_table(decode_ctx *d, zval *out) {
      * uncatchable and stricter than the decoder's return-NULL contract). */
     zend_array *outer = NULL;
 
-    /* Rows share unique non-numeric keys and table geometry, so build the hash
-     * layout once. Initialize values to IS_UNDEF for safe partial cleanup;
-     * ZVAL_COPY_VALUE preserves each bucket's u2 collision-chain link. */
-    uint32_t *tpl_hash = NULL;   /* hash-slot image, tpl_nslots entries */
-    uint32_t tpl_nslots = 0;
-
     zval *colbuf = (zval *)dec_safe_emalloc((size_t)nrows, sizeof(zval));
     if (UNEXPECTED(!colbuf)) {
         efree(keys);
@@ -4302,40 +4296,35 @@ static zend_never_inline int dec_decode_table(decode_ctx *d, zval *out) {
             if (use_add_new) {
                 int tpl_static_keys = 1;
                 for (; r < nrows && !PHPSER_HAS_OOM(); r++) {
-                    zend_array *row = dec_new_array((uint32_t)ncols, DEC_INIT_MIXED);
-                    if (UNEXPECTED(!row)) break;
-                    if (tpl_hash == NULL) {
-                        /* First row fixes the geometry; nTableMask is the
-                         * negated table size. */
-                        tpl_nslots = (uint32_t)-(int32_t)row->nTableMask;
-                        tpl_hash = (uint32_t *)safe_emalloc(
-                            tpl_nslots, sizeof(uint32_t), 0);
-                        memset(tpl_hash, 0xFF,
-                               (size_t)tpl_nslots * sizeof(uint32_t));
+                    zend_array *row;
+                    if (r == 0) {
+                        /* UNDEF cells make partial cleanup safe; column stores
+                         * preserve each bucket's u2 collision-chain link. */
+                        row = dec_new_array((uint32_t)ncols, DEC_INIT_MIXED);
+                        if (UNEXPECTED(!row)) break;
                         for (uint32_t k = 0; k < (uint32_t)ncols; k++) {
                             zend_ulong h = zend_string_hash_val(keys[k]);
-                            uint32_t slot = (uint32_t)h & (tpl_nslots - 1);
+                            uint32_t slot = (uint32_t)h | row->nTableMask;
                             Bucket *b = &row->arData[k];
                             b->h = h;
                             b->key = keys[k];
                             ZVAL_UNDEF(&b->val);
-                            Z_NEXT(b->val) = tpl_hash[slot];
-                            tpl_hash[slot] = HT_IDX_TO_HASH(k);
+                            Z_NEXT(b->val) = HT_HASH(row, slot);
+                            HT_HASH(row, slot) = HT_IDX_TO_HASH(k);
                             if (!ZSTR_IS_INTERNED(keys[k])) {
                                 tpl_static_keys = 0;
                             }
                         }
-                    }
-                    memcpy((uint32_t *)row->arData - tpl_nslots, tpl_hash,
-                           (size_t)tpl_nslots * sizeof(uint32_t));
-                    if (r != 0) {
-                        Bucket *first = Z_ARR(outer->arPacked[0])->arData;
-                        switch (ncols) {
-                            case 1: memcpy(row->arData, first, sizeof(Bucket)); break;
-                            case 2: memcpy(row->arData, first, 2 * sizeof(Bucket)); break;
-                            case 3: memcpy(row->arData, first, 3 * sizeof(Bucket)); break;
-                            default: memcpy(row->arData, first, (size_t)ncols * sizeof(Bucket)); break;
-                        }
+                    } else {
+                        zend_array *first = Z_ARR(outer->arPacked[0]);
+                        void *data = dec_safe_emalloc(1, HT_SIZE(first));
+                        if (UNEXPECTED(!data)) break;
+                        row = emalloc(sizeof(zend_array));
+                        /* No cells are populated yet; clone the empty row without
+                         * resetting a hash area that the copy immediately replaces. */
+                        memcpy(row, first, sizeof(zend_array));
+                        HT_SET_DATA_ADDR(row, data);
+                        memcpy(data, HT_GET_DATA_ADDR(first), HT_USED_SIZE(first));
                     }
                     row->nNumUsed = (uint32_t)ncols;
                     row->nNumOfElements = (uint32_t)ncols;
@@ -4387,7 +4376,6 @@ static zend_never_inline int dec_decode_table(decode_ctx *d, zval *out) {
 
     efree(colbuf);
     efree(keys);
-    if (tpl_hash) efree(tpl_hash);
     /* ncols >= 1 is checked above and the loop's only early exit is the failure
      * goto, so column 0 always materialized `outer` by the time we get here. */
     ZVAL_ARR(out, outer);
@@ -4399,7 +4387,6 @@ table_fail:
      * before the jump, so colbuf is only freed here, never re-dtored. */
     efree(colbuf);
     efree(keys);
-    if (tpl_hash) efree(tpl_hash);
     if (outer) zend_array_destroy(outer);
     return -1;
 }

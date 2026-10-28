@@ -1,0 +1,693 @@
+{
+  "environment": {
+    "date": "2026-10-27",
+    "cpu": "2 x Intel Xeon Platinum 8160 (48 physical cores, 96 threads)",
+    "php": "8.5.11 NTS, release, -n, no OPcache",
+    "compiler": "GCC 15.2.0",
+    "extension_cflags": "-g -O2",
+    "baseline_commit": "c7acc94",
+    "wire_format_changed": false
+  },
+  "serial_method": {
+    "harness": "ab.php",
+    "cpu": 4,
+    "pairs": 7,
+    "samples_per_process": 5,
+    "order": "baseline/candidate on even pairs, candidate/baseline on odd pairs",
+    "unit": "ns per decode, including destruction of returned value",
+    "statistic": "median of paired percentage reductions; raw arrays contain each process median",
+    "environment": {
+      "BENCH_EXTRA": 1,
+      "BENCH_APP": 1,
+      "BENCH_MODE": "decode",
+      "BENCH_REPS": 5
+    },
+    "command": "taskset -c 4 php -n -dmemory_limit=1G -dextension=/absolute/path/to/build.so ab.php",
+    "selection": "Set BENCH_SHAPE and BENCH_ITERS per case below. Use the same harness for both binaries."
+  },
+  "changes": [
+    {
+      "change": "Advance double-block cursors once per block",
+      "commit": "309cef3",
+      "base": "c7acc94",
+      "iterations": {
+        "doubles_10k": 10000,
+        "wide_1000": 500,
+        "doubles_1m": 100
+      },
+      "results": {
+        "doubles_10k": {
+          "base": [
+            18744.8,
+            18468.0,
+            18566.8,
+            18548.2,
+            18618.3,
+            18636.2,
+            18498.8
+          ],
+          "candidate": [
+            16638.6,
+            16521.7,
+            16561.5,
+            16807.1,
+            16605.9,
+            16661.3,
+            16611.5
+          ],
+          "median_improvement_pct": 10.597117438104341,
+          "range_improvement_pct": [
+            9.386894685198577,
+            11.236182834706165
+          ]
+        },
+        "wide_1000": {
+          "base": [
+            254497.7,
+            252242.7,
+            251654.8,
+            252427.9,
+            252037.4,
+            251618.1,
+            251413.9
+          ],
+          "candidate": [
+            235463.7,
+            236342.0,
+            235609.7,
+            236566.1,
+            236909.0,
+            235942.0,
+            237901.3
+          ],
+          "median_improvement_pct": 6.2836952650638045,
+          "range_improvement_pct": [
+            5.374643168098503,
+            7.479045979590381
+          ]
+        },
+        "doubles_1m": {
+          "base": [
+            3762028.9,
+            3722633.6,
+            4002844.5,
+            3939008.0,
+            3775336.3,
+            3778348.1,
+            4034005.6
+          ],
+          "candidate": [
+            3555489.7,
+            3778856.4,
+            4001381.1,
+            3797762.9,
+            3576157.8,
+            3559982.1,
+            3583827.0
+          ],
+          "median_improvement_pct": 5.275781656855316,
+          "range_improvement_pct": [
+            -1.510296366529329,
+            11.159592837451694
+          ]
+        }
+      },
+      "limitation": "Million-element result is noisy and not claimed as a repeatable gain."
+    },
+    {
+      "change": "Clone empty table rows without resetting hash storage",
+      "commit": "ed8f606",
+      "base": "309cef3",
+      "iterations": {
+        "rowset_1000": 2000,
+        "table_10k": 150,
+        "wide_1000": 500
+      },
+      "results": {
+        "rowset_1000": {
+          "base": [
+            76578.1,
+            76214.5,
+            76151.8,
+            76671.0,
+            77435.9,
+            77542.9,
+            76344.8
+          ],
+          "candidate": [
+            74331.8,
+            75708.9,
+            73947.3,
+            75708.1,
+            73663.5,
+            73871.0,
+            74276.7
+          ],
+          "median_improvement_pct": 2.8948757613083353,
+          "range_improvement_pct": [
+            0.6633908245806341,
+            4.871642222793293
+          ]
+        },
+        "table_10k": {
+          "base": [
+            1170761.9,
+            1171040.6,
+            1165653.5,
+            1167341.5,
+            1169136.3,
+            1169942.3,
+            1166554.2
+          ],
+          "candidate": [
+            1143207.5,
+            1153389.3,
+            1142804.0,
+            1142541.9,
+            1153269.1,
+            1145839.9,
+            1144869.3
+          ],
+          "median_improvement_pct": 1.9602308919417277,
+          "range_improvement_pct": [
+            1.3571728121006932,
+            2.353544303073063
+          ]
+        },
+        "wide_1000": {
+          "base": [
+            234263.7,
+            234037.5,
+            234478.6,
+            233524.6,
+            233272.2,
+            233563.5,
+            234094.6
+          ],
+          "candidate": [
+            226601.8,
+            225734.2,
+            225713.7,
+            225759.6,
+            224869.5,
+            225602.3,
+            225288.7
+          ],
+          "median_improvement_pct": 3.547850237675576,
+          "range_improvement_pct": [
+            3.270630490340598,
+            3.761684378879304
+          ]
+        }
+      }
+    },
+    {
+      "change": "Inline the scalar decoder at hot callers",
+      "base": "ed8f606",
+      "iterations": {
+        "rowset_1000": 2000,
+        "dto_1000": 1000,
+        "eloquent_coll_30": 2000,
+        "wallet": 500,
+        "packed_rand_10k": 3000,
+        "packed_10k": 8000,
+        "deep_50": 30000,
+        "doubles_10k": 6000,
+        "strings_10k": 400
+      },
+      "results": {
+        "rowset_1000": {
+          "base": [
+            73818.2,
+            73858.5,
+            74015.4,
+            73997.0,
+            73554.0,
+            73738.9,
+            73938.6
+          ],
+          "candidate": [
+            72471.8,
+            69514.6,
+            69522.0,
+            69316.9,
+            69415.0,
+            69340.7,
+            69607.5
+          ],
+          "median_improvement_pct": 5.881381289898924,
+          "range_improvement_pct": [
+            1.8239404374530865,
+            6.324715866859476
+          ]
+        },
+        "dto_1000": {
+          "base": [
+            179139.7,
+            179222.0,
+            178214.1,
+            178616.1,
+            179995.1,
+            200531.7,
+            193488.9
+          ],
+          "candidate": [
+            173745.6,
+            174248.6,
+            175078.7,
+            175223.2,
+            175627.8,
+            179802.9,
+            174637.8
+          ],
+          "median_improvement_pct": 2.774994141344256,
+          "range_improvement_pct": [
+            1.759344518755812,
+            10.336919300040847
+          ]
+        },
+        "eloquent_coll_30": {
+          "base": [
+            39046.6,
+            38553.6,
+            38536.1,
+            38597.7,
+            38923.0,
+            38730.2,
+            38650.6
+          ],
+          "candidate": [
+            37633.8,
+            37016.6,
+            36580.3,
+            36772.2,
+            36658.9,
+            37031.5,
+            36461.4
+          ],
+          "median_improvement_pct": 4.7295564243465265,
+          "range_improvement_pct": [
+            3.6182407687224916,
+            5.816869203298813
+          ]
+        },
+        "wallet": {
+          "base": [
+            190929.5,
+            191321.8,
+            193361.4,
+            192166.8,
+            196317.8,
+            192675.6,
+            193557.8
+          ],
+          "candidate": [
+            182495.4,
+            181662.1,
+            183786.0,
+            186813.3,
+            186118.0,
+            185246.2,
+            184156.0
+          ],
+          "median_improvement_pct": 4.857360437037405,
+          "range_improvement_pct": [
+            2.785861033227388,
+            5.195555369915505
+          ]
+        },
+        "packed_rand_10k": {
+          "base": [
+            40247.3,
+            40211.1,
+            40193.8,
+            40601.2,
+            40563.7,
+            40723.2,
+            40848.0
+          ],
+          "candidate": [
+            39837.5,
+            39812.6,
+            39883.0,
+            39785.7,
+            40158.7,
+            40186.4,
+            39973.2
+          ],
+          "median_improvement_pct": 1.0182049479095512,
+          "range_improvement_pct": [
+            0.7732535863740231,
+            2.1415981198590006
+          ]
+        },
+        "packed_10k": {
+          "base": [
+            12267.5,
+            12362.8,
+            12324.0,
+            12361.6,
+            12351.8,
+            12403.5,
+            12379.3
+          ],
+          "candidate": [
+            12281.0,
+            12360.1,
+            12360.9,
+            12418.7,
+            12368.4,
+            12347.4,
+            12350.4
+          ],
+          "median_improvement_pct": -0.11004687181577211,
+          "range_improvement_pct": [
+            -0.4619143152989835,
+            0.452291691861173
+          ]
+        },
+        "deep_50": {
+          "base": [
+            2455.7,
+            2436.7,
+            2425.1,
+            2428.1,
+            2428.1,
+            2411.3,
+            2487.4
+          ],
+          "candidate": [
+            2402.6,
+            2408.1,
+            2407.8,
+            2389.4,
+            2394.8,
+            2382.5,
+            2430.9
+          ],
+          "median_improvement_pct": 1.3714426918166378,
+          "range_improvement_pct": [
+            0.7133726444270239,
+            2.271448098416018
+          ]
+        },
+        "doubles_10k": {
+          "base": [
+            16569.7,
+            16651.8,
+            16455.4,
+            16568.1,
+            16625.1,
+            16523.0,
+            16551.5
+          ],
+          "candidate": [
+            16342.8,
+            16286.7,
+            16559.2,
+            16490.9,
+            16435.1,
+            16464.3,
+            16418.2
+          ],
+          "median_improvement_pct": 0.8053650726520201,
+          "range_improvement_pct": [
+            -0.6307959697120724,
+            2.19255575973768
+          ]
+        },
+        "strings_10k": {
+          "base": [
+            170536.6,
+            173826.8,
+            173990.4,
+            179750.6,
+            192379.6,
+            184811.4,
+            182802.3
+          ],
+          "candidate": [
+            148095.5,
+            145930.1,
+            145143.1,
+            145624.4,
+            161986.7,
+            154731.1,
+            146266.2
+          ],
+          "median_improvement_pct": 16.276214562521574,
+          "range_improvement_pct": [
+            13.159110712890964,
+            19.986674128279557
+          ]
+        }
+      },
+      "machine_text_growth_bytes": 7984
+    }
+  ],
+  "concurrent": {
+    "base": "c7acc94",
+    "candidate": "all three changes",
+    "shape": "rowset_1000",
+    "workers": 48,
+    "affinity": "one process on each CPU 0-47 (one hardware thread per physical core)",
+    "iterations_per_worker": 10000,
+    "samples_per_worker": 5,
+    "pairs": 5,
+    "work_per_batch": 2400000,
+    "timing": "Whole batch wall time, including process startup, fixture construction and warmup. Startup work excluded from operation count. Processes launched together without a start barrier.",
+    "environment": {
+      "BENCH_MODE": "decode",
+      "BENCH_SHAPE": "rowset_1000",
+      "BENCH_ITERS": 10000,
+      "BENCH_REPS": 5
+    },
+    "results": [
+      {
+        "pair": 0,
+        "label": "base",
+        "seconds": 5.725856709992513,
+        "ops_s": 419151.25046905654
+      },
+      {
+        "pair": 0,
+        "label": "candidate",
+        "seconds": 5.26472050906159,
+        "ops_s": 455864.655278308
+      },
+      {
+        "pair": 1,
+        "label": "candidate",
+        "seconds": 5.414008724037558,
+        "ops_s": 443294.4463765424
+      },
+      {
+        "pair": 1,
+        "label": "base",
+        "seconds": 5.675171938026324,
+        "ops_s": 422894.67635665275
+      },
+      {
+        "pair": 2,
+        "label": "base",
+        "seconds": 5.662067414959893,
+        "ops_s": 423873.4412908788
+      },
+      {
+        "pair": 2,
+        "label": "candidate",
+        "seconds": 5.372242473997176,
+        "ops_s": 446740.81849740085
+      },
+      {
+        "pair": 3,
+        "label": "candidate",
+        "seconds": 5.569286659127101,
+        "ops_s": 430934.90188134124
+      },
+      {
+        "pair": 3,
+        "label": "base",
+        "seconds": 5.914991088910028,
+        "ops_s": 405748.709325994
+      },
+      {
+        "pair": 4,
+        "label": "base",
+        "seconds": 5.681629318976775,
+        "ops_s": 422414.0409836213
+      },
+      {
+        "pair": 4,
+        "label": "candidate",
+        "seconds": 5.345203244127333,
+        "ops_s": 449000.70032637793
+      },
+      {
+        "results": {
+          "base": [
+            5.725856709992513,
+            5.675171938026324,
+            5.662067414959893,
+            5.914991088910028,
+            5.681629318976775
+          ],
+          "candidate": [
+            5.26472050906159,
+            5.414008724037558,
+            5.372242473997176,
+            5.569286659127101,
+            5.345203244127333
+          ]
+        },
+        "median_throughput_gain_pct": 6.207337688685444,
+        "range": [
+          4.823841764961179,
+          8.75898730307183
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "release_suite": {
+      "pass": 204,
+      "skip": 6,
+      "expected_failure": 1,
+      "failure": 0
+    },
+    "valgrind": {
+      "pass": 6,
+      "leaks": 0,
+      "USE_ZEND_ALLOC": 0,
+      "tests": [
+        "060",
+        "069",
+        "090",
+        "118",
+        "262",
+        "264"
+      ]
+    },
+    "ini_isolation": "Test executable wrapper forces PHP_INI_SCAN_DIR to an existing empty directory, including in children, to avoid test 257 loading the system phpser.so alongside the tested binary.",
+    "not_validated": [
+      "Other CPU architectures",
+      "Other PHP versions and ZTS",
+      "Debug PHP: available debug binaries embed older phpser statically, so loading the candidate was rejected."
+    ]
+  },
+  "discarded_experiment": {
+    "change": "Combine row hash and bucket copies without removing initialization",
+    "results": {
+      "rowset_1000": {
+        "base": [
+          76806.8,
+          78205.5,
+          78243.6,
+          77455.6,
+          76803.3,
+          76671.6,
+          76630.3
+        ],
+        "candidate": [
+          77182.5,
+          78020.9,
+          77606.2,
+          77219.6,
+          76492.8,
+          76340.5,
+          76607.0
+        ],
+        "median_improvement_pct": 0.30469068730989424,
+        "range_improvement_pct": [
+          -0.48914939823037074,
+          0.814635318415835
+        ]
+      },
+      "table_10k": {
+        "base": [
+          1182880.2,
+          1181733.6,
+          1179321.4,
+          1179136.3,
+          1176682.7,
+          1172351.4,
+          1179061.6
+        ],
+        "candidate": [
+          1186218.4,
+          1186987.4,
+          1178834.7,
+          1181235.7,
+          1180568.7,
+          1176298.0,
+          1170366.8
+        ],
+        "median_improvement_pct": -0.2822094748056392,
+        "range_improvement_pct": [
+          -0.4445841262362249,
+          0.7374339050648437
+        ]
+      },
+      "wide_1000": {
+        "base": [
+          235645.5,
+          233984.4,
+          233665.3,
+          233789.9,
+          233760.4,
+          234567.5,
+          234101.9
+        ],
+        "candidate": [
+          232431.0,
+          231759.8,
+          232669.2,
+          232615.7,
+          232178.4,
+          231537.6,
+          232512.9
+        ],
+        "median_improvement_pct": 0.6787642475349465,
+        "range_improvement_pct": [
+          0.42629350613889727,
+          1.3641253493064776
+        ]
+      }
+    },
+    "reason": "No repeatable ordinary-rowset benefit."
+  },
+  "profiling": {
+    "perf_record": {
+      "baseline_doubles_10k_self_cycles_pct": {
+        "decode_value_inner": 67.27,
+        "zend_array_destroy": 31.07
+      },
+      "baseline_rowset_1000_self_cycles_pct": {
+        "dec_decode_table": 35.02,
+        "zend_array_destroy": 11.45,
+        "decode_scalar_tag": 7.34,
+        "memmove": 6.9
+      },
+      "integer_control_self_cycles_pct": {
+        "dec_decode_packed_delta": 84.61
+      }
+    },
+    "perf_stat_scalar_inline": {
+      "shape": "rowset_1000",
+      "iterations": 20000,
+      "samples": 3,
+      "cpu": 4,
+      "base": {
+        "cycles": 15843009371,
+        "instructions": 45831366031,
+        "branches": 9326846155
+      },
+      "candidate": {
+        "cycles": 14907478513,
+        "instructions": 44807758361,
+        "branches": 9085945588
+      },
+      "note": "Whole process counters include setup; single corroborating run, not the timing repeatability claim."
+    }
+  }
+}

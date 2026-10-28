@@ -3327,7 +3327,7 @@ static zend_always_inline int dec_is_array_tag(uint8_t tag) {
 
 /* Decode a tag whose leading byte was already consumed. Caller must only pass
  * scalar tags; returns -1 on truncation. */
-static int decode_scalar_tag(decode_ctx *d, zval *out, uint8_t tag) {
+static zend_always_inline int decode_scalar_tag(decode_ctx *d, zval *out, uint8_t tag) {
     switch (tag) {
         case TAG_NULL:  ZVAL_NULL(out); return 0;
         case TAG_FALSE: ZVAL_FALSE(out); return 0;
